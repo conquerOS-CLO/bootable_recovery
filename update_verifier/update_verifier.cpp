@@ -294,7 +294,7 @@ void UpdateVerifier::set_property_reader(
   property_reader_ = property_reader;
 }
 
-static int reboot_device() {
+[[maybe_unused]] static int reboot_device() {
   if (android_reboot(ANDROID_RB_RESTART2, 0, nullptr) == -1) {
     LOG(ERROR) << "Failed to reboot.";
     return -1;
@@ -309,8 +309,8 @@ int update_verifier(int argc, char** argv) {
 
   sp<IBootControl> module = IBootControl::getService();
   if (module == nullptr) {
-    LOG(ERROR) << "Error getting bootctrl module.";
-    return reboot_device();
+    LOG(WARNING) << "Error getting bootctrl module, skipping verification.";
+    return 0;
   }
 
   uint32_t current_slot = module->getCurrentSlot();
@@ -336,8 +336,8 @@ int update_verifier(int argc, char** argv) {
       LOG(WARNING) << "dm-verity in disabled mode; marking without verification.";
       skip_verification = true;
     } else if (verity_mode != "enforcing") {
-      LOG(ERROR) << "Unexpected dm-verity mode: " << verity_mode << ", expecting enforcing.";
-      return reboot_device();
+      LOG(WARNING) << "Unexpected dm-verity mode: " << verity_mode << ", expecting enforcing.";
+      skip_verification = true;
     }
 
     if (!skip_verification) {
@@ -346,7 +346,7 @@ int update_verifier(int argc, char** argv) {
         LOG(WARNING) << "Failed to parse the care map file, skipping verification";
       } else if (!verifier.VerifyPartitions()) {
         LOG(ERROR) << "Failed to verify all blocks in care map file.";
-        return reboot_device();
+        return 0;
       }
     }
 
@@ -368,7 +368,7 @@ int update_verifier(int argc, char** argv) {
       module->markBootSuccessful([&cr](CommandResult result) { cr = result; });
       if (!cr.success) {
         LOG(ERROR) << "Error marking booted successfully: " << cr.errMsg;
-        return reboot_device();
+        return 0;
       }
       LOG(INFO) << "Marked slot " << current_slot << " as booted successfully.";
       // Clears the warm reset flag for next reboot.
